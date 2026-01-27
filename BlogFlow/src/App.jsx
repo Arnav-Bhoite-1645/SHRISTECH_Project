@@ -12,7 +12,7 @@ import {
   Loader2,
   Plus
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously, 
@@ -29,26 +29,35 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 
-// --- Safety Check for Environment Variables ---
-// This prevents the blank screen error when running locally.
+// --- Firebase Configuration Logic ---
+// Prioritize environment variables (__firebase_config) provided by the platform.
+// Fall back to your provided credentials for local development.
 const getFirebaseConfig = () => {
-  try {
-    if (typeof __firebase_config !== 'undefined') {
+  if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+    try {
       return JSON.parse(__firebase_config);
+    } catch (e) {
+      console.error("Error parsing __firebase_config:", e);
     }
-  } catch (e) {
-    console.error("Failed to parse firebase config", e);
   }
-  return null;
+  return {
+    apiKey: "AIzaSyAiXSU3NNT7pS3T84xYKTdnqtLVojcg3Z0",
+    authDomain: "blogflow-b57fb.firebaseapp.com",
+    projectId: "blogflow-b57fb",
+    storageBucket: "blogflow-b57fb.firebasestorage.app",
+    messagingSenderId: "17149220780",
+    appId: "1:17149220780:web:374f7f8278638b3151cc09",
+    measurementId: "G-B5LMYPSE2L"
+  };
 };
 
 const firebaseConfig = getFirebaseConfig();
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'blog-flow-local-dev';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'blogflow-main-production';
 
-// Only initialize if config exists
-const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
-const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
+// Initialize Firebase services safely
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -70,70 +79,65 @@ export default function App() {
     content: ''
   });
 
-  // --- Authentication & Data Sync ---
+  // --- Authentication (Mandatory Rule 3) ---
   useEffect(() => {
-    if (!auth) {
-        setLoading(false);
-        return;
-    }
+    let isMounted = true;
 
     const initAuth = async () => {
       try {
+        // ALWAYS prioritize __initial_auth_token if available
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
+          // Fallback to anonymous (Requires "Anonymous" to be enabled in Firebase Console)
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.error("Auth error:", err);
+        console.error("Authentication failed:", err);
+        // If auth fails, we still stop loading to show a friendly state/error
+        if (isMounted) setLoading(false);
       }
     };
+
     initAuth();
 
     const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+      if (isMounted) {
+        setUser(u);
+        // Auth state changed, data sync useEffect will take over
+      }
     });
-    return () => unsubscribeAuth();
+
+    return () => {
+      isMounted = false;
+      unsubscribeAuth();
+    };
   }, []);
 
+  // --- Data Sync (Mandatory Rules 1 & 2) ---
   useEffect(() => {
-    if (!user || !db) return;
+    // Guard: Auth must be complete before querying Firestore
+    if (!user) return;
 
+    // Use strict path: /artifacts/{appId}/public/data/{collectionName}
     const blogsRef = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
-    const unsubscribeBlogs = onSnapshot(blogsRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setBlogs(data);
-      setLoading(false);
-    }, (error) => {
-      console.error("Firestore error:", error);
-      setLoading(false);
-    });
+    
+    const unsubscribeBlogs = onSnapshot(blogsRef, 
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Client-side sort to avoid complex Firestore index requirements (Rule 2)
+        const sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setBlogs(sortedData);
+        setLoading(false);
+      }, 
+      (error) => {
+        console.error("Firestore sync error:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribeBlogs();
   }, [user]);
-
-  // --- Render Error if Config Missing ---
-  if (!firebaseConfig) {
-    return (
-      <div style={{ 
-        height: '100vh', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        padding: '2rem',
-        textAlign: 'center',
-        fontFamily: 'sans-serif',
-        backgroundColor: '#FAF7F2'
-      }}>
-        <h1 style={{ color: '#B45309', marginBottom: '1rem' }}>Configuration Missing</h1>
-        <p style={{ maxWidth: '500px', lineHeight: '1.6', color: '#6B6B6B' }}>
-          The app is looking for <code>__firebase_config</code>. If you are running this locally, 
-          you need to provide your own Firebase configuration object in the source code.
-        </p>
-      </div>
-    );
-  }
 
   // --- CRUD Handlers ---
   const showToast = (msg) => {
@@ -143,7 +147,10 @@ export default function App() {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!user || !db) return;
+    if (!user) {
+      showToast("Authentication required to publish.");
+      return;
+    }
 
     const slug = formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const blogData = { ...formData, slug, updatedAt: new Date().toISOString() };
@@ -152,20 +159,21 @@ export default function App() {
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
       if (editingId) {
         await updateDoc(doc(collRef, editingId), blogData);
-        showToast("Story updated in the flow.");
+        showToast("Story updated successfully.");
       } else {
         await addDoc(collRef, blogData);
-        showToast("New story published to flow.");
+        showToast("New story added to the flow.");
       }
       resetForm();
       setIsAdminOpen(false);
     } catch (err) {
-      showToast("Error saving story.");
+      console.error("Save error:", err);
+      showToast("Error saving story. Ensure Firestore rules are set.");
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Remove this story from the flow?")) return;
+    if (!window.confirm("Are you sure you want to remove this story?")) return;
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'blogs', id));
       showToast("Story deleted.");
@@ -204,6 +212,7 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      {/* Editorial CSS Injection */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap');
 
@@ -617,23 +626,23 @@ export default function App() {
                   <input className="input" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} required placeholder="e.g. Design" />
                 </div>
                 <div className="form-group">
-                  <label className="label">Date</label>
+                  <label className="form-label">Date</label>
                   <input className="input" type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required />
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="label">Cover Image URL</label>
+                <label className="form-label">Cover Image URL</label>
                 <input className="input" type="url" value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} required placeholder="Unsplash URL..." />
               </div>
 
               <div className="form-group">
-                <label className="label">Summary (SEO)</label>
+                <label className="form-label">Summary (SEO Excerpt)</label>
                 <input className="input" value={formData.summary} onChange={e => setFormData({...formData, summary: e.target.value})} required placeholder="A brief hook..." />
               </div>
 
               <div className="form-group">
-                <label className="label">Content</label>
+                <label className="form-label">Full Content</label>
                 <textarea className="textarea" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} required placeholder="Write the flow..." />
               </div>
 
@@ -643,13 +652,13 @@ export default function App() {
             </form>
 
             <div className="admin-items">
-              <h3 className="label" style={{ marginBottom: '2rem', borderBottom: '1px solid #E5E0D8', paddingBottom: '0.5rem' }}>Active Flow</h3>
+              <h3 className="form-label" style={{ marginBottom: '2rem', borderBottom: '2px solid #EEE', paddingBottom: '0.5rem', color: COLORS.text }}>Active Flow</h3>
               {blogs.map(blog => (
                 <div key={blog.id} className="list-item">
                   <img src={blog.imageUrl} alt="" />
                   <div className="list-info">
                     <p className="list-title">{blog.title}</p>
-                    <p className="list-subtitle">{blog.category}</p>
+                    <p className="list-cat" style={{ color: COLORS.muted, fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase' }}>{blog.category}</p>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => startEdit(blog)} style={{ background: 'none', border: 'none', color: COLORS.accent, cursor: 'pointer' }}><Edit size={20} /></button>
