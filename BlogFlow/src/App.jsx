@@ -632,6 +632,7 @@ export default function App() {
               </div>
 
               <div className="form-group">
+                {/* For local images in public/cover-images/, use: https://yourdomain.com/cover-images/filename.webp (replace yourdomain.com with localhost:5178 for dev) */}
                 <label className="form-label">Cover Image URL</label>
                 <input className="input" type="url" value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} required placeholder="Unsplash URL..." />
               </div>
