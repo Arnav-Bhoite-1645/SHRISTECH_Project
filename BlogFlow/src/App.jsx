@@ -30,8 +30,6 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Configuration Logic ---
-// Prioritize environment variables (__firebase_config) provided by the platform.
-// Fall back to your provided credentials for local development.
 const getFirebaseConfig = () => {
   if (typeof __firebase_config !== 'undefined' && __firebase_config) {
     try {
@@ -54,7 +52,6 @@ const getFirebaseConfig = () => {
 const firebaseConfig = getFirebaseConfig();
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'blogflow-main-production';
 
-// Initialize Firebase services safely
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -68,7 +65,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
-  // Form State
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -79,53 +75,36 @@ export default function App() {
     content: ''
   });
 
-  // --- Authentication (Mandatory Rule 3) ---
   useEffect(() => {
     let isMounted = true;
-
     const initAuth = async () => {
       try {
-        // ALWAYS prioritize __initial_auth_token if available
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
-          // Fallback to anonymous (Requires "Anonymous" to be enabled in Firebase Console)
           await signInAnonymously(auth);
         }
       } catch (err) {
         console.error("Authentication failed:", err);
-        // If auth fails, we still stop loading to show a friendly state/error
         if (isMounted) setLoading(false);
       }
     };
-
     initAuth();
-
     const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
-      if (isMounted) {
-        setUser(u);
-        // Auth state changed, data sync useEffect will take over
-      }
+      if (isMounted) setUser(u);
     });
-
     return () => {
       isMounted = false;
       unsubscribeAuth();
     };
   }, []);
 
-  // --- Data Sync (Mandatory Rules 1 & 2) ---
   useEffect(() => {
-    // Guard: Auth must be complete before querying Firestore
     if (!user) return;
-
-    // Use strict path: /artifacts/{appId}/public/data/{collectionName}
     const blogsRef = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
-    
     const unsubscribeBlogs = onSnapshot(blogsRef, 
       (snapshot) => {
         const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Client-side sort to avoid complex Firestore index requirements (Rule 2)
         const sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
         setBlogs(sortedData);
         setLoading(false);
@@ -135,11 +114,9 @@ export default function App() {
         setLoading(false);
       }
     );
-
     return () => unsubscribeBlogs();
   }, [user]);
 
-  // --- CRUD Handlers ---
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -151,10 +128,8 @@ export default function App() {
       showToast("Authentication required to publish.");
       return;
     }
-
     const slug = formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const blogData = { ...formData, slug, updatedAt: new Date().toISOString() };
-
     try {
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
       if (editingId) {
@@ -168,7 +143,7 @@ export default function App() {
       setIsAdminOpen(false);
     } catch (err) {
       console.error("Save error:", err);
-      showToast("Error saving story. Ensure Firestore rules are set.");
+      showToast("Error saving story.");
     }
   };
 
@@ -212,7 +187,6 @@ export default function App() {
 
   return (
     <div className="app-layout">
-      {/* Editorial CSS Injection */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap');
 
@@ -340,17 +314,8 @@ export default function App() {
         }
 
         .card-image-box { position: relative; height: 300px; overflow: hidden; }
-        .card-stripe {
-          position: absolute;
-          top: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 24px;
-          height: 100%;
-          background: var(--accent);
-          opacity: 0.85;
-          z-index: 2;
-        }
+
+        /* The stripe class has been removed to fulfill the request */
 
         .card-img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%); transition: var(--transition); }
         .blog-card:hover .card-img { filter: grayscale(0); transform: scale(1.08); }
@@ -542,7 +507,7 @@ export default function App() {
                 blogs.map(blog => (
                   <article key={blog.id} className="blog-card" onClick={() => { setView('details'); setCurrentSlug(blog.slug); window.scrollTo(0,0); }}>
                     <div className="card-image-box">
-                      <div className="card-stripe" />
+                      {/* The card-stripe div has been removed to fulfill the request */}
                       <img src={blog.imageUrl} className="card-img" alt={blog.title} />
                     </div>
                     <div className="card-body">
@@ -632,7 +597,6 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                {/* For local images in public/cover-images/, use: https://yourdomain.com/cover-images/filename.webp (replace yourdomain.com with localhost:5178 for dev) */}
                 <label className="form-label">Cover Image URL</label>
                 <input className="input" type="url" value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} required placeholder="Unsplash URL..." />
               </div>
