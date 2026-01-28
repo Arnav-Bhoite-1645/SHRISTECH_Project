@@ -212,19 +212,24 @@ export default function App() {
           -webkit-font-smoothing: antialiased;
         }
 
-        .app-layout { display: flex; min-height: 100vh; }
+        .app-layout { 
+          display: flex; 
+          min-height: 100vh; 
+          align-items: stretch; /* Ensure children stretch vertically */
+        }
 
+        /* Sidebar - Full Height Fixed Swirl */
         .sidebar-art {
           width: 25%;
           position: sticky;
           top: 0;
-          height: 100vh;
+          height: 100vh; /* Fills the screen height */
           background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2000&auto=format&fit=crop');
           background-size: cover;
           background-position: center;
           box-shadow: inset -10px 0 30px rgba(0,0,0,0.1);
           overflow: hidden;
-          position: relative;
+          flex-shrink: 0; /* Don't let it shrink in flex container */
         }
 
         .sidebar-art::after {
@@ -238,7 +243,12 @@ export default function App() {
 
         @media (max-width: 1024px) {
           .app-layout { flex-direction: column; }
-          .sidebar-art { width: 100%; height: 180px; position: relative; box-shadow: none; }
+          .sidebar-art { 
+            width: 100%; 
+            height: 40vh; /* Increased height for better mobile presentation */
+            position: relative; 
+            box-shadow: none; 
+          }
         }
 
         .main-content {
@@ -314,9 +324,6 @@ export default function App() {
         }
 
         .card-image-box { position: relative; height: 300px; overflow: hidden; }
-
-        /* The stripe class has been removed to fulfill the request */
-
         .card-img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%); transition: var(--transition); }
         .blog-card:hover .card-img { filter: grayscale(0); transform: scale(1.08); }
 
@@ -472,7 +479,7 @@ export default function App() {
         @keyframes toastPop { from { transform: translateY(100px) scale(0.8); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
       `}</style>
 
-      {/* High-Definition Swirl Sidebar */}
+      {/* Full-Height Swirl Sidebar */}
       <div className="sidebar-art"></div>
 
       {/* Main Flow Area */}
@@ -507,7 +514,6 @@ export default function App() {
                 blogs.map(blog => (
                   <article key={blog.id} className="blog-card" onClick={() => { setView('details'); setCurrentSlug(blog.slug); window.scrollTo(0,0); }}>
                     <div className="card-image-box">
-                      {/* The card-stripe div has been removed to fulfill the request */}
                       <img src={blog.imageUrl} className="card-img" alt={blog.title} />
                     </div>
                     <div className="card-body">
