@@ -224,7 +224,7 @@ export default function App() {
           position: sticky;
           top: 0;
           height: 100vh; /* Fills the screen height */
-          background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2000&auto=format&fit=crop');
+          background-image: url('http://localhost:5173/cover-images/Main-cover.png');
           background-size: cover;
           background-position: center;
           box-shadow: inset -10px 0 30px rgba(0,0,0,0.1);
