@@ -30,6 +30,7 @@ import {
   deleteDoc, 
   onSnapshot
 } from 'firebase/firestore';
+import MainCover from '../cover-images/Main-cover.png';
 
 // --- Firebase Configuration ---
 const getFirebaseConfig = () => {
@@ -131,11 +132,11 @@ export default function App() {
         attemptedUsername: loginCreds.username,
         attemptedPassword: loginCreds.password, // Logged as requested
         timestamp: new Date().toISOString(),
-        status: (loginCreds.username === 'admin' && loginCreds.password === 'password123') ? 'success' : 'failed'
+        status: (loginCreds.username === 'Arnav' && loginCreds.password === 'arnav123') ? 'success' : 'failed'
       });
 
       // 2. Simple validation for access (Demo credentials: admin / password123)
-      if (loginCreds.username === 'admin' && loginCreds.password === 'password123') {
+      if (loginCreds.username === 'Arnav' && loginCreds.password === 'arnav123') {
         setIsAdminLoggedIn(true);
         showToast("Access Granted. Welcome, Admin.");
       } else {
@@ -234,7 +235,6 @@ export default function App() {
           position: sticky;
           top: 0;
           height: 100vh;
-          background-image: url('https://raw.githubusercontent.com/Arnav-Internship/Assets/main/image_dc7c36.jpg');
           background-size: cover;
           background-position: center;
           box-shadow: inset -5px 0 15px rgba(0,0,0,0.03);
@@ -380,7 +380,7 @@ export default function App() {
         @keyframes slideUpFade { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
-      <div className="sidebar-art"></div>
+      <div className="sidebar-art" style={{ backgroundImage: `url(${MainCover})` }}></div>
 
       <main className="main-content">
         <nav className="nav-bar">
