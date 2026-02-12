@@ -12,7 +12,8 @@ import {
   Loader2,
   Lock,
   User,
-  Key
+  Key,
+  LogOut
 } from 'lucide-react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -30,7 +31,6 @@ import {
   deleteDoc, 
   onSnapshot
 } from 'firebase/firestore';
-import MainCover from '../cover-images/Main-cover.png';
 
 // --- Firebase Configuration ---
 const getFirebaseConfig = () => {
@@ -64,8 +64,10 @@ export default function App() {
   const [blogs, setBlogs] = useState([]);
   const [view, setView] = useState('home'); 
   const [currentSlug, setCurrentSlug] = useState(null);
+  
+  // App Gating State
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -120,31 +122,33 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // --- Login Handler & Firestore Logging ---
-  const handleAdminLogin = async (e) => {
+  // --- Gated Login Handler ---
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoginLoading(true);
 
     try {
-      // 1. Log the attempt to Firebase (User Requirement)
+      const isSuccess = loginCreds.username === 'Arnav' && loginCreds.password === 'arnav123';
+
+      // 1. Log attempt directly to Firebase as requested
       const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'admin_logs');
       await addDoc(logsRef, {
-        attemptedUsername: loginCreds.username,
-        attemptedPassword: loginCreds.password, // Logged as requested
+        username: loginCreds.username,
+        password: loginCreds.password,
         timestamp: new Date().toISOString(),
-        status: (loginCreds.username === 'Arnav' && loginCreds.password === 'arnav123') ? 'success' : 'failed'
+        status: isSuccess ? 'success' : 'denied'
       });
 
-      // 2. Simple validation for access (Demo credentials: admin / password123)
-      if (loginCreds.username === 'Arnav' && loginCreds.password === 'arnav123') {
-        setIsAdminLoggedIn(true);
-        showToast("Access Granted. Welcome, Admin.");
+      // 2. Validate Access
+      if (isSuccess) {
+        setIsAuthorized(true);
+        showToast("Access Granted. Welcome back, Arnav.");
       } else {
-        showToast("Invalid credentials. Attempt logged.");
+        showToast("Access Denied. Check credentials.");
       }
     } catch (err) {
-      console.error("Logging error:", err);
-      showToast("System error. Try again later.");
+      console.error("Login Error:", err);
+      showToast("Connection error. Try again.");
     } finally {
       setLoginLoading(false);
     }
@@ -235,6 +239,7 @@ export default function App() {
           position: sticky;
           top: 0;
           height: 100vh;
+          background-image: url('https://raw.githubusercontent.com/Arnav-Internship/Assets/main/image_dc7c36.jpg');
           background-size: cover;
           background-position: center;
           box-shadow: inset -5px 0 15px rgba(0,0,0,0.03);
@@ -245,7 +250,7 @@ export default function App() {
 
         @media (max-width: 1024px) {
           .app-layout { flex-direction: column; }
-          .sidebar-art { width: 100%; height: 40vh; position: relative; }
+          .sidebar-art { width: 100%; height: 25vh; position: relative; }
         }
 
         .main-content { flex: 1; padding: 4rem 8%; position: relative; }
@@ -301,35 +306,24 @@ export default function App() {
         .details-container { max-width: 950px; margin: 0 auto; animation: slideUpFade 0.7s ease-out; }
         .hero-img { width: 100%; height: 600px; object-fit: cover; border-radius: var(--radius-lg); margin-bottom: 5rem; }
 
-        /* Login & Admin Panel */
-        .admin-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(28, 28, 28, 0.4);
-          backdrop-filter: blur(12px);
-          z-index: 1000;
-          display: flex;
-          justify-content: flex-end;
-          animation: fadeIn 0.4s ease;
-        }
-
-        .admin-panel {
-          width: 100%;
-          max-width: 700px;
-          background: var(--bg);
-          height: 100%;
-          padding: 4rem;
-          overflow-y: auto;
-          box-shadow: -30px 0 80px rgba(0,0,0,0.15);
-          animation: slideInRight 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-        }
-
-        .login-box {
-          height: 100%;
+        /* Login Screen */
+        .login-screen {
+          flex: 1;
           display: flex;
           flex-direction: column;
           justify-content: center;
           align-items: center;
+          padding: 2rem;
+          animation: fadeIn 0.8s ease;
+        }
+
+        .login-card {
+          width: 100%;
+          max-width: 450px;
+          background: var(--white);
+          padding: 4rem;
+          border-radius: 30px;
+          box-shadow: 0 20px 50px rgba(0,0,0,0.05);
           text-align: center;
         }
 
@@ -371,6 +365,29 @@ export default function App() {
         }
         .btn-submit:hover { background: var(--secondary); transform: translateY(-3px); }
 
+        /* Admin Management Panel */
+        .admin-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(28, 28, 28, 0.4);
+          backdrop-filter: blur(12px);
+          z-index: 1000;
+          display: flex;
+          justify-content: flex-end;
+          animation: fadeIn 0.4s ease;
+        }
+
+        .admin-panel {
+          width: 100%;
+          max-width: 700px;
+          background: var(--bg);
+          height: 100%;
+          padding: 4rem;
+          overflow-y: auto;
+          box-shadow: -30px 0 80px rgba(0,0,0,0.15);
+          animation: slideInRight 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
         .loader-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
         .spinner { animation: rotateSpinner 1s linear infinite; color: var(--accent); }
 
@@ -380,100 +397,109 @@ export default function App() {
         @keyframes slideUpFade { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
-      <div className="sidebar-art" style={{ backgroundImage: `url(${MainCover})` }}></div>
+      {/* Persistent Brand Sidebar */}
+      <div className="sidebar-art"></div>
 
-      <main className="main-content">
-        <nav className="nav-bar">
-          <button onClick={() => setView('home')} className="btn-icon" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-            <Home size={26} color={COLORS.text} />
-          </button>
-          <button onClick={() => setIsAdminOpen(true)} className="btn-admin">
-            <Lock size={16} /> ADMIN ACCESS
-          </button>
-        </nav>
-
-        {view === 'home' ? (
-          <section>
-            <h1 className="brand-title">BlogFlow</h1>
-            <div className="tagline-group">
-              <span className="tag-prefix">//STORY//</span>
-              <p className="tagline-text">An organic digital canvas for design reflections and shared stories.</p>
-            </div>
-            <div className="blog-grid">
-              {blogs.map(blog => (
-                <article key={blog.id} className="blog-card" onClick={() => { setView('details'); setCurrentSlug(blog.slug); window.scrollTo(0,0); }}>
-                  <div className="card-image-box"><img src={blog.imageUrl} className="card-img" /></div>
-                  <div className="card-body">
-                    <span className="card-category">{blog.category}</span>
-                    <h3 className="card-title">{blog.title}</h3>
-                    <div className="card-footer">
-                      <span style={{ fontSize: '0.75rem', color: COLORS.muted }}>{new Date(blog.date).toLocaleDateString()}</span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 900, color: COLORS.accent }}>READ &rarr;</span>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : (
-          <section className="details-container">
-            <button className="btn-back" onClick={() => setView('home')}><ArrowLeft size={16} /> BACK TO FLOW</button>
-            <img src={currentBlog?.imageUrl} className="hero-img" />
-            <h1 className="brand-title" style={{ fontSize: '3.5rem' }}>{currentBlog?.title}</h1>
-            <div style={{ marginTop: '3rem', fontSize: '1.25rem' }}>
-              {currentBlog?.content.split('\n').map((p, i) => <p key={i} style={{ marginBottom: '1.5rem' }}>{p}</p>)}
-            </div>
-          </section>
-        )}
-      </main>
-
-      {/* Admin Gateway (Overlay) */}
-      {isAdminOpen && (
-        <div className="admin-overlay" onClick={(e) => e.target.className === 'admin-overlay' && setIsAdminOpen(false)}>
-          <div className="admin-panel">
-            {!isAdminLoggedIn ? (
-              /* LOGIN PAGE */
-              <div className="login-box">
-                <Lock size={48} color={COLORS.accent} style={{ marginBottom: '2rem' }} />
-                <h2 style={{ fontFamily: 'Playfair Display', fontSize: '2.5rem', marginBottom: '1rem' }}>Admin Gateway</h2>
-                <p style={{ color: COLORS.muted, marginBottom: '3rem' }}>Please enter credentials to manage the flow. Attempts are logged to Firebase.</p>
-                
-                <form onSubmit={handleAdminLogin} style={{ width: '100%', maxWidth: '400px' }}>
-                  <div className="input-group">
-                    <User className="input-icon" size={20} />
-                    <input 
-                      className="input" 
-                      placeholder="Username" 
-                      value={loginCreds.username}
-                      onChange={(e) => setLoginCreds({...loginCreds, username: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="input-group">
-                    <Key className="input-icon" size={20} />
-                    <input 
-                      className="input" 
-                      type="password" 
-                      placeholder="Password" 
-                      value={loginCreds.password}
-                      onChange={(e) => setLoginCreds({...loginCreds, password: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <button className="btn-submit" type="submit" disabled={loginLoading}>
-                    {loginLoading ? <Loader2 className="spinner" size={20} /> : 'IDENTIFY ADMIN'}
-                  </button>
-                </form>
-                <button 
-                  onClick={() => setIsAdminOpen(false)} 
-                  style={{ marginTop: '2rem', background: 'none', border: 'none', color: COLORS.muted, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Cancel Access
-                </button>
+      {!isAuthorized ? (
+        /* LOGIN VIEW: Shown immediately upon opening */
+        <main className="login-screen">
+          <div className="login-card">
+            <Lock size={48} color={COLORS.accent} style={{ marginBottom: '2rem', display: 'inline-block' }} />
+            <h1 style={{ fontFamily: 'Playfair Display', fontSize: '2.5rem', marginBottom: '1rem' }}>BlogFlow Entry</h1>
+            <p style={{ color: COLORS.muted, marginBottom: '3rem' }}>Please identify yourself to access the flow.</p>
+            
+            <form onSubmit={handleLogin}>
+              <div className="input-group">
+                <User className="input-icon" size={20} />
+                <input 
+                  className="input" 
+                  placeholder="Username" 
+                  autoComplete="username"
+                  value={loginCreds.username}
+                  onChange={(e) => setLoginCreds({...loginCreds, username: e.target.value})}
+                  required
+                />
               </div>
-            ) : (
-              /* ADMIN CMS CONTENT (Only visible after login) */
-              <>
+              <div className="input-group">
+                <Key className="input-icon" size={20} />
+                <input 
+                  className="input" 
+                  type="password" 
+                  placeholder="Password" 
+                  autoComplete="current-password"
+                  value={loginCreds.password}
+                  onChange={(e) => setLoginCreds({...loginCreds, password: e.target.value})}
+                  required
+                />
+              </div>
+              <button className="btn-submit" type="submit" disabled={loginLoading}>
+                {loginLoading ? <Loader2 className="spinner" size={20} /> : 'UNFOLD FLOW'}
+              </button>
+            </form>
+          </div>
+          <p style={{ marginTop: '2rem', fontSize: '0.75rem', color: COLORS.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Attempts are logged to secure database
+          </p>
+        </main>
+      ) : (
+        /* MAIN APPLICATION VIEW: Only shown after successful login */
+        <main className="main-content">
+          <nav className="nav-bar">
+            <button onClick={() => setView('home')} className="btn-icon" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <Home size={26} color={COLORS.text} />
+            </button>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={() => setIsAdminOpen(true)} className="btn-admin">
+                <Settings size={16} /> MANAGE CONTENT
+              </button>
+              <button 
+                onClick={() => setIsAuthorized(false)} 
+                className="btn-admin" 
+                style={{ background: 'rgba(0,0,0,0.05)', color: 'red' }}
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+          </nav>
+
+          {view === 'home' ? (
+            <section>
+              <h1 className="brand-title">BlogFlow</h1>
+              <div className="tagline-group">
+                <span className="tag-prefix">//STORY//</span>
+                <p className="tagline-text">Welcome back, Arnav. Explore design reflections and shared stories.</p>
+              </div>
+              <div className="blog-grid">
+                {blogs.map(blog => (
+                  <article key={blog.id} className="blog-card" onClick={() => { setView('details'); setCurrentSlug(blog.slug); window.scrollTo(0,0); }}>
+                    <div className="card-image-box"><img src={blog.imageUrl} className="card-img" alt={blog.title} /></div>
+                    <div className="card-body">
+                      <span className="card-category">{blog.category}</span>
+                      <h3 className="card-title">{blog.title}</h3>
+                      <div className="card-footer">
+                        <span style={{ fontSize: '0.75rem', color: COLORS.muted }}>{new Date(blog.date).toLocaleDateString()}</span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 900, color: COLORS.accent }}>READ &rarr;</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <section className="details-container">
+              <button className="btn-back" onClick={() => setView('home')}><ArrowLeft size={16} /> BACK TO FLOW</button>
+              <img src={currentBlog?.imageUrl} className="hero-img" alt={currentBlog?.title} />
+              <h1 className="brand-title" style={{ fontSize: '3.5rem' }}>{currentBlog?.title}</h1>
+              <div style={{ marginTop: '3rem', fontSize: '1.25rem' }}>
+                {currentBlog?.content.split('\n').map((p, i) => <p key={i} style={{ marginBottom: '1.5rem' }}>{p}</p>)}
+              </div>
+            </section>
+          )}
+
+          {/* Admin CMS Modal */}
+          {isAdminOpen && (
+            <div className="admin-overlay" onClick={(e) => e.target.className === 'admin-overlay' && setIsAdminOpen(false)}>
+              <div className="admin-panel">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4rem' }}>
                   <h2 style={{ fontFamily: 'Playfair Display', fontSize: '2.5rem' }}>Story Manager</h2>
                   <button className="btn-icon" onClick={() => { setIsAdminOpen(false); resetForm(); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={36} /></button>
@@ -509,18 +535,17 @@ export default function App() {
                   <h3 style={{ marginBottom: '2rem', fontWeight: 800 }}>ACTIVE STORIES</h3>
                   {blogs.map(blog => (
                     <div key={blog.id} style={{ display: 'flex', alignItems: 'center', background: '#FFF', padding: '1rem', borderRadius: '16px', marginBottom: '1rem' }}>
-                      <img src={blog.imageUrl} style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover', marginRight: '1rem' }} />
+                      <img src={blog.imageUrl} style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover', marginRight: '1rem' }} alt="" />
                       <div style={{ flex: 1 }}><p style={{ fontWeight: 800 }}>{blog.title}</p></div>
                       <button onClick={() => startEdit(blog)} style={{ background: 'none', border: 'none', color: COLORS.accent, cursor: 'pointer', margin: '0 0.5rem' }}><Edit size={20} /></button>
                       <button onClick={() => handleDelete(blog.id)} style={{ background: 'none', border: 'none', color: 'red', cursor: 'pointer' }}><Trash2 size={20} /></button>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setIsAdminLoggedIn(false)} style={{ marginTop: '2rem', color: 'red', fontWeight: 800, cursor: 'pointer', background: 'none', border: 'none' }}>LOGOUT</button>
-              </>
-            )}
-          </div>
-        </div>
+              </div>
+            </div>
+          )}
+        </main>
       )}
 
       {toast && <div style={{ position: 'fixed', bottom: '40px', right: '40px', background: COLORS.secondary, color: '#FFF', padding: '1rem 2.5rem', borderRadius: '50px', fontWeight: 800, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', zIndex: 2000 }}>{toast}</div>}
