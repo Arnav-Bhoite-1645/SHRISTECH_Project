@@ -130,6 +130,18 @@ export default function App() {
     try {
       const isSuccess = loginCreds.username === 'Arnav' && loginCreds.password === 'arnav123';
 
+      // Ensure the client is authenticated before writing to Firestore.
+      // Some Firestore rules require an authenticated user; attempting to write
+      // without a user can produce a network/permission error seen as "Connection error".
+      if (!auth.currentUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (authErr) {
+          console.error('Auth sign-in error:', authErr);
+          throw new Error('Authentication failed: ' + (authErr && authErr.message ? authErr.message : authErr));
+        }
+      }
+
       // 1. Log attempt directly to Firebase as requested
       const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'admin_logs');
       await addDoc(logsRef, {
@@ -142,13 +154,14 @@ export default function App() {
       // 2. Validate Access
       if (isSuccess) {
         setIsAuthorized(true);
-        showToast("Access Granted. Welcome back, Arnav.");
+        showToast('Access Granted. Welcome back, Arnav.');
       } else {
-        showToast("Access Denied. Check credentials.");
+        showToast('Access Denied. Check credentials.');
       }
     } catch (err) {
-      console.error("Login Error:", err);
-      showToast("Connection error. Try again.");
+      console.error('Login Error:', err);
+      const message = err && err.message ? err.message : 'Try again.';
+      showToast('Connection error. ' + message);
     } finally {
       setLoginLoading(false);
     }
@@ -208,7 +221,7 @@ export default function App() {
   return (
     <div className="app-layout">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap');
+        /* Using local cover image instead of remote import */
 
         :root {
           --bg: #FAF7F2;
@@ -239,7 +252,7 @@ export default function App() {
           position: sticky;
           top: 0;
           height: 100vh;
-          background-image: url('https://raw.githubusercontent.com/Arnav-Internship/Assets/main/image_dc7c36.jpg');
+          background-image: url('../cover-images/Main-cover.png');
           background-size: cover;
           background-position: center;
           box-shadow: inset -5px 0 15px rgba(0,0,0,0.03);
