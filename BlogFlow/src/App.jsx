@@ -31,6 +31,12 @@ import {
   deleteDoc, 
   onSnapshot
 } from 'firebase/firestore';
+import { 
+  getStorage, 
+  ref, 
+  uploadBytesResumable, 
+  getDownloadURL 
+} from 'firebase/storage';
 
 // --- Firebase Configuration ---
 const getFirebaseConfig = () => {
@@ -58,6 +64,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'blogflow-main-produc
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -77,6 +84,7 @@ export default function App() {
 
   // Blog Form State
   const [editingId, setEditingId] = useState(null);
+  const [isImageUploading, setIsImageUploading] = useState(false);
   const [formData, setFormData] = useState({
     title: '', category: '', date: '', imageUrl: '', summary: '', content: ''
   });
@@ -206,6 +214,45 @@ export default function App() {
   const resetForm = () => {
     setEditingId(null);
     setFormData({ title: '', category: '', date: '', imageUrl: '', summary: '', content: '' });
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsImageUploading(true);
+    try {
+      const timestamp = Date.now();
+      const fileName = `${timestamp}-${file.name}`;
+      const storageRef = ref(storage, `blog-images/${fileName}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      await new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log('Upload progress:', progress);
+          },
+          (error) => {
+            console.error('Upload error:', error);
+            reject(error);
+          },
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            setFormData(prev => ({ ...prev, imageUrl: downloadURL }));
+            showToast('Image uploaded successfully.');
+            resolve();
+          }
+        );
+      });
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      showToast('Failed to upload image.');
+    } finally {
+      setIsImageUploading(false);
+      e.target.value = '';
+    }
   };
 
   const currentBlog = useMemo(() => blogs.find(b => b.slug === currentSlug), [blogs, currentSlug]);
@@ -376,7 +423,78 @@ export default function App() {
           cursor: pointer;
           transition: var(--transition);
         }
-        .btn-submit:hover { background: var(--secondary); transform: translateY(-3px); }
+        .btn-submit:hover:not(:disabled) { background: var(--secondary); transform: translateY(-3px); }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .file-upload-wrapper {
+          position: relative;
+          display: inline-block;
+          width: 100%;
+          margin-bottom: 1.5rem;
+        }
+
+        .file-upload-input {
+          display: none;
+        }
+
+        .file-upload-label {
+          font-size: 0.7rem;
+          font-weight: 800;
+          color: var(--muted);
+          display: block;
+          margin-bottom: 0.5rem;
+        }
+
+        .file-upload-btn {
+          width: 100%;
+          padding: 1.25rem;
+          background: var(--white);
+          border: 2px dashed var(--accent);
+          border-radius: 16px;
+          cursor: pointer;
+          font-weight: 700;
+          color: var(--accent);
+          transition: var(--transition);
+          font-family: inherit;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.8rem;
+        }
+
+        .file-upload-btn:hover {
+          background: rgba(180, 83, 9, 0.05);
+          border-color: var(--secondary);
+          color: var(--secondary);
+        }
+
+        .file-upload-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          border-color: var(--muted);
+          color: var(--muted);
+        }
+
+        .file-upload-status {
+          font-size: 0.75rem;
+          color: var(--accent);
+          font-weight: 600;
+          margin-top: 0.5rem;
+          display: block;
+        }
+
+        .file-upload-preview {
+          margin-top: 1rem;
+          font-size: 0.85rem;
+          color: var(--text);
+          padding: 1rem;
+          background: rgba(180, 83, 9, 0.1);
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
 
         /* Admin Management Panel */
         .admin-overlay {
@@ -533,15 +651,39 @@ export default function App() {
                       <input className="input" style={{ paddingLeft: '1.25rem' }} type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required />
                     </div>
                   </div>
-                  <div style={{ marginBottom: '1.5rem' }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.muted, display: 'block', marginBottom: '0.5rem' }}>IMAGE URL</label>
-                    <input className="input" style={{ paddingLeft: '1.25rem' }} value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} required />
+                  <div className="file-upload-wrapper">
+                    <label className="file-upload-label">IMAGE UPLOAD</label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      disabled={isImageUploading}
+                      className="file-upload-input"
+                      id="imageFileInput"
+                    />
+                    <label htmlFor="imageFileInput" className="file-upload-btn" style={{ cursor: isImageUploading ? 'not-allowed' : 'pointer' }}>
+                      {isImageUploading ? (
+                        <>
+                          <Loader2 size={18} style={{ animation: 'rotateSpinner 1s linear infinite' }} />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          📷 Choose Image
+                        </>
+                      )}
+                    </label>
+                    {formData.imageUrl && (
+                      <div className="file-upload-preview">
+                        ✓ Image ready for upload
+                      </div>
+                    )}
                   </div>
                   <div style={{ marginBottom: '1.5rem' }}>
                     <label style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.muted, display: 'block', marginBottom: '0.5rem' }}>CONTENT</label>
                     <textarea className="textarea" style={{ paddingLeft: '1.25rem', minHeight: '200px' }} value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} required />
                   </div>
-                  <button className="btn-submit" type="submit">{editingId ? 'UPDATE STORY' : 'PUBLISH TO FLOW'}</button>
+                  <button className="btn-submit" type="submit" disabled={isImageUploading}>{editingId ? 'UPDATE STORY' : 'PUBLISH TO FLOW'}</button>
                 </form>
 
                 <div style={{ marginTop: '4rem', borderTop: '2px dashed #E5E0D8', paddingTop: '3rem' }}>
