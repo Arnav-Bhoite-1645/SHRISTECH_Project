@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import BlogCard from './components/BlogCard';
@@ -61,10 +62,6 @@ const storage = getStorage(app);
 export default function App() {
   const [user, setUser] = useState(null);
   const [blogs, setBlogs] = useState([]);
-  const [view, setView] = useState('home'); 
-  const [currentSlug, setCurrentSlug] = useState(null);
-  
-  // App Gating State
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -80,6 +77,8 @@ export default function App() {
   const [formData, setFormData] = useState({
     title: '', category: '', date: '', imageUrl: '', summary: '', content: ''
   });
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     let isMounted = true;
@@ -128,7 +127,7 @@ export default function App() {
     setLoginLoading(true);
 
     try {
-      const isSuccess = loginCreds.username === 'Arnav' && loginCreds.password === 'arnav123';
+      const isSuccess = loginCreds.username === 'Arnav' && loginCreds.password === 'arnav159';
 
       // Ensure the client is authenticated before writing to Firestore.
       // Some Firestore rules require an authenticated user; attempting to write
@@ -155,6 +154,7 @@ export default function App() {
       if (isSuccess) {
         setIsAuthorized(true);
         showToast('Access Granted. Welcome back, Arnav.');
+        navigate('/');
       } else {
         showToast('Access Denied. Check credentials.');
       }
@@ -247,8 +247,6 @@ export default function App() {
     }
   };
 
-  const currentBlog = useMemo(() => blogs.find(b => b.slug === currentSlug), [blogs, currentSlug]);
-
   if (loading) {
     return (
       <div className="loader-container">
@@ -267,24 +265,31 @@ export default function App() {
       ) : (
         /* MAIN APPLICATION VIEW: Only shown after successful login */
         <main className="main-content">
-          <Navbar onHome={() => setView('home')} onManage={() => setIsAdminOpen(true)} onLogout={() => setIsAuthorized(false)} />
-
-            {view === 'home' ? (
-            <section>
-              <h1 className="brand-title">BlogFlow</h1>
-              <div className="tagline-group">
-                <span className="tag-prefix">//STORY//</span>
-                <p className="tagline-text">Welcome back, Arnav. Explore design reflections and shared stories.</p>
-              </div>
-              <div className="blog-grid">
-                {blogs.map(blog => (
-                  <BlogCard key={blog.id} blog={blog} onOpen={(b) => { setView('details'); setCurrentSlug(b.slug); window.scrollTo(0,0); }} />
-                ))}
-              </div>
-            </section>
-          ) : (
-            <BlogDetails blog={currentBlog} onBack={() => setView('home')} />
-          )}
+          <Routes>
+            <Route path="/" element={
+              <>
+                <Navbar onHome={() => navigate('/')} onManage={() => setIsAdminOpen(true)} onLogout={() => setIsAuthorized(false)} />
+                <section>
+                  <h1 className="brand-title">BlogFlow</h1>
+                  <div className="tagline-group">
+                    <span className="tag-prefix">//STORY//</span>
+                    <p className="tagline-text">Welcome back, Arnav. Explore design reflections and shared stories.</p>
+                  </div>
+                  <div className="blog-grid">
+                    {blogs.map(blog => (
+                      <BlogCard key={blog.id} blog={blog} onOpen={(b) => { navigate(`/blog/${b.slug}`); window.scrollTo(0,0); }} />
+                    ))}
+                  </div>
+                </section>
+              </>
+            } />
+            <Route path="/blog/:slug" element={
+              <>
+                <Navbar onHome={() => navigate('/')} onManage={() => setIsAdminOpen(true)} onLogout={() => setIsAuthorized(false)} />
+                <BlogDetailsPage blogs={blogs} />
+              </>
+            } />
+          </Routes>
 
           {/* Admin CMS Modal */}
           {isAdminOpen && (
@@ -308,5 +313,14 @@ export default function App() {
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
+}
+
+// BlogDetails Page Component with Routing
+function BlogDetailsPage({ blogs }) {
+  const { slug } = useParams();
+  const navigate = useNavigate();
+  const currentBlog = useMemo(() => blogs.find(b => b.slug === slug), [blogs, slug]);
+
+  return <BlogDetails blog={currentBlog} onBack={() => navigate('/')} />;
 }
  
