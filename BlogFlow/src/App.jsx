@@ -70,6 +70,7 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [currentUsername, setCurrentUsername] = useState('');
 
   // Login / Signup Form State
   const [loginCreds, setLoginCreds] = useState({ username: '', password: '' });
@@ -158,10 +159,12 @@ export default function App() {
       const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
       const snapshots = await getDocs(usersRef);
       let isSuccess = false;
+      let matchedUser = null;
       snapshots.forEach(doc => {
         const data = doc.data();
         if ((data.username === loginCreds.username || data.email === loginCreds.username) && data.password === loginCreds.password) {
           isSuccess = true;
+          matchedUser = data.username;
         }
       });
 
@@ -176,7 +179,8 @@ export default function App() {
 
       if (isSuccess) {
         setIsAuthorized(true);
-        showToast('Access Granted. Welcome back.');
+        setCurrentUsername(matchedUser || loginCreds.username);
+        showToast('Access Granted. Welcome back, ' + (matchedUser || loginCreds.username) + '.');
         navigate('/');
       } else {
         showToast('Access Denied. Check credentials.');
@@ -224,6 +228,7 @@ export default function App() {
       });
       showToast('Account created!');
       setIsAuthorized(true);
+      setCurrentUsername(signupCreds.username);
       navigate('/');
     } catch (err) {
       console.error('Signup error:', err);
@@ -238,7 +243,7 @@ export default function App() {
     e.preventDefault();
     if (!user) return;
     const slug = formData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const blogData = { ...formData, slug, updatedAt: new Date().toISOString() };
+    const blogData = { ...formData, slug, updatedAt: new Date().toISOString(), author: currentUsername };
     try {
       const collRef = collection(db, 'artifacts', appId, 'public', 'data', 'blogs');
       if (editingId) {
@@ -255,13 +260,21 @@ export default function App() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, author) => {
+    if (author !== currentUsername) {
+      showToast('You are not allowed to delete this story.');
+      return;
+    }
     if (!window.confirm("Delete this story?")) return;
     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'blogs', id));
     showToast("Story deleted.");
   };
 
   const startEdit = (blog) => {
+    if (blog.author !== currentUsername) {
+      showToast('You can only edit your own stories.');
+      return;
+    }
     setEditingId(blog.id);
     setFormData({
       title: blog.title, category: blog.category, date: blog.date, 
@@ -388,6 +401,7 @@ export default function App() {
               startEdit={startEdit}
               handleDelete={handleDelete}
               resetForm={resetForm}
+              currentUsername={currentUsername}
             />
           )}
         </main>

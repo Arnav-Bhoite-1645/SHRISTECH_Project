@@ -13,6 +13,7 @@ export default function AdminModal({
   startEdit,
   handleDelete,
   resetForm,
+  currentUsername,
 }) {
   return (
     <div className="admin-overlay" onClick={(e) => e.target.className === 'admin-overlay' && onClose()}>
@@ -77,9 +78,16 @@ export default function AdminModal({
           {blogs.map(blog => (
             <div key={blog.id} style={{ display: 'flex', alignItems: 'center', background: '#FFF', padding: '1rem', borderRadius: '16px', marginBottom: '1rem' }}>
               <img src={blog.imageUrl} style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover', marginRight: '1rem' }} alt="" />
-              <div style={{ flex: 1 }}><p style={{ fontWeight: 800 }}>{blog.title}</p></div>
-              <button onClick={() => startEdit(blog)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', margin: '0 0.5rem' }}><Edit size={20} /></button>
-              <button onClick={() => handleDelete(blog.id)} style={{ background: 'none', border: 'none', color: 'red', cursor: 'pointer' }}><Trash2 size={20} /></button>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontWeight: 800 }}>{blog.title}</p>
+                {blog.author && <p style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>by {blog.author}</p>}
+              </div>
+              {currentUsername === blog.author && (
+                <>
+                  <button onClick={() => startEdit(blog)} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', margin: '0 0.5rem' }}><Edit size={20} /></button>
+                  <button onClick={() => handleDelete(blog.id, blog.author)} style={{ background: 'none', border: 'none', color: 'red', cursor: 'pointer' }}><Trash2 size={20} /></button>
+                </>
+              )}
             </div>
           ))}
         </div>
