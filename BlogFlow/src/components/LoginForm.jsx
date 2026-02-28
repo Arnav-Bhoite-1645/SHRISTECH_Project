@@ -1,7 +1,7 @@
 import React from 'react';
 import { Loader2, Lock, User, Key } from 'lucide-react';
 
-export default function LoginForm({ loginCreds, setLoginCreds, loginLoading, handleLogin }) {
+export default function LoginForm({ loginCreds, setLoginCreds, loginLoading, handleLogin, switchToSignup }) {
   return (
     <main className="login-screen">
       <div className="login-card">
@@ -38,6 +38,12 @@ export default function LoginForm({ loginCreds, setLoginCreds, loginLoading, han
             {loginLoading ? <Loader2 className="spinner" size={20} /> : 'UNFOLD FLOW'}
           </button>
         </form>
+        <p style={{ marginTop: '1.5rem', fontSize: '0.75rem', color: 'var(--muted)' }}>
+          Don't have an account?{' '}
+          <button type="button" className="link" onClick={switchToSignup}>
+            Sign up
+          </button>
+        </p>
       </div>
       <p style={{ marginTop: '2rem', fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
         Attempts are logged to secure database

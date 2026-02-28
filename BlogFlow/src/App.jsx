@@ -7,6 +7,7 @@ import BlogCard from './components/BlogCard';
 import AdminModal from './components/AdminModal';
 import BlogDetails from './components/BlogDetails';
 import LoginForm from './components/LoginForm';
+import SignupForm from './components/SignupForm';
 import './App.css';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
@@ -22,7 +23,10 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  onSnapshot
+  onSnapshot,
+  query,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { 
   getStorage, 
@@ -67,9 +71,22 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
-  // Login Form State
+  // Login / Signup Form State
   const [loginCreds, setLoginCreds] = useState({ username: '', password: '' });
   const [loginLoading, setLoginLoading] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+  const [signupCreds, setSignupCreds] = useState({ email: '', username: '', password: '' });
+  const [signupLoading, setSignupLoading] = useState(false);
+
+  const switchToSignup = () => {
+    setShowSignup(true);
+    setLoginCreds({ username: '', password: '' });
+  };
+
+  const switchToLogin = () => {
+    setShowSignup(false);
+    setSignupCreds({ email: '', username: '', password: '' });
+  };
 
   // Blog Form State
   const [editingId, setEditingId] = useState(null);
@@ -127,11 +144,7 @@ export default function App() {
     setLoginLoading(true);
 
     try {
-      const isSuccess = loginCreds.username === 'Arnav' && loginCreds.password === 'arnav159';
-
-      // Ensure the client is authenticated before writing to Firestore.
-      // Some Firestore rules require an authenticated user; attempting to write
-      // without a user can produce a network/permission error seen as "Connection error".
+      // first ensure auth user exists for Firestore writes
       if (!auth.currentUser) {
         try {
           await signInAnonymously(auth);
@@ -141,7 +154,18 @@ export default function App() {
         }
       }
 
-      // 1. Log attempt directly to Firebase as requested
+      // lookup user record from Firestore
+      const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+      const snapshots = await getDocs(usersRef);
+      let isSuccess = false;
+      snapshots.forEach(doc => {
+        const data = doc.data();
+        if ((data.username === loginCreds.username || data.email === loginCreds.username) && data.password === loginCreds.password) {
+          isSuccess = true;
+        }
+      });
+
+      // log attempt
       const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'admin_logs');
       await addDoc(logsRef, {
         username: loginCreds.username,
@@ -150,10 +174,9 @@ export default function App() {
         status: isSuccess ? 'success' : 'denied'
       });
 
-      // 2. Validate Access
       if (isSuccess) {
         setIsAuthorized(true);
-        showToast('Access Granted. Welcome back, Arnav.');
+        showToast('Access Granted. Welcome back.');
         navigate('/');
       } else {
         showToast('Access Denied. Check credentials.');
@@ -164,6 +187,50 @@ export default function App() {
       showToast('Connection error. ' + message);
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setSignupLoading(true);
+
+    try {
+      // ensure authenticated client
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+
+      const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+      // check for duplicates
+      const userQuery = query(usersRef, where('username', '==', signupCreds.username));
+      const emailQuery = query(usersRef, where('email', '==', signupCreds.email));
+      const [userSnap, emailSnap] = await Promise.all([getDocs(userQuery), getDocs(emailQuery)]);
+      if (!userSnap.empty) {
+        showToast('Username already taken.');
+        setSignupLoading(false);
+        return;
+      }
+      if (!emailSnap.empty) {
+        showToast('Email already registered.');
+        setSignupLoading(false);
+        return;
+      }
+
+      await addDoc(usersRef, {
+        email: signupCreds.email,
+        username: signupCreds.username,
+        password: signupCreds.password,
+        createdAt: new Date().toISOString()
+      });
+      showToast('Account created!');
+      setIsAuthorized(true);
+      navigate('/');
+    } catch (err) {
+      console.error('Signup error:', err);
+      const msg = err && err.message ? err.message : '';
+      showToast('Signup failed. ' + msg);
+    } finally {
+      setSignupLoading(false);
     }
   };
 
@@ -261,7 +328,23 @@ export default function App() {
       <Sidebar />
 
       {!isAuthorized ? (
-        <LoginForm loginCreds={loginCreds} setLoginCreds={setLoginCreds} loginLoading={loginLoading} handleLogin={handleLogin} />
+        showSignup ? (
+          <SignupForm
+            signupCreds={signupCreds}
+            setSignupCreds={setSignupCreds}
+            signupLoading={signupLoading}
+            handleSignup={handleSignup}
+            switchToLogin={switchToLogin}
+          />
+        ) : (
+          <LoginForm
+            loginCreds={loginCreds}
+            setLoginCreds={setLoginCreds}
+            loginLoading={loginLoading}
+            handleLogin={handleLogin}
+            switchToSignup={switchToSignup}
+          />
+        )
       ) : (
         /* MAIN APPLICATION VIEW: Only shown after successful login */
         <main className="main-content">
